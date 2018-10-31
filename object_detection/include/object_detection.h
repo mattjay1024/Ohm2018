@@ -11,6 +11,7 @@
 #include <ohm_igvc_msgs/RangeArray.h>
 #include <ohm_igvc_msgs/Waypoint.h>
 #include <sensor_msgs/PointCloud.h>
+#include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/ChannelFloat32.h>
 #include <std_msgs/ColorRGBA.h>
 #include <tf/tf.h>
@@ -31,6 +32,7 @@ class object_detector {
 
 		void find_point_groups(const sensor_msgs::PointCloud::ConstPtr &pcl);
 		void find_valid_ranges(std::vector<std::list<geometry_msgs::Point32>> groups);
+		void find_ranges(const sensor_msgs::LaserScan::ConstPtr &scan);
 
 		//*** HELPER FUNCTIONS ***//
 
@@ -54,7 +56,7 @@ class object_detector {
 
 		// ROS specific
 		ros::NodeHandle node;
-		ros::Subscriber pcl_input;
+		ros::Subscriber pcl_input, scan_input;
 		ros::Publisher object_groups_pub, object_markers_pub, range_pub;
 		std::string pcl_frame;
 		ohm_igvc_msgs::Waypoint pose;
@@ -65,6 +67,9 @@ class object_detector {
 		tf::TransformListener pose_listener;
 		ros::Time last_received_pcl;
 		double min_obstacle_distance;
+		double min_obstacle_size;
+		double front_min_obstacle_distance;
+		double side_min_obstacle_distance;
 };
 
 #endif

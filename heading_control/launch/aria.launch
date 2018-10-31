@@ -13,15 +13,20 @@
 	</include>
 
 	<!-- LiDAR Node and Object Detection -->
-	<remap from="/RosAria/sim_lms2xx_1_pointcloud" to="/ohm/pcl" />
+	<!-- remap from="/RosAria/sim_lms2xx_1_pointcloud" to="/ohm/pcl" / -->
+	<remap from="/RosAria/sim_lms2xx_1_laserscan" to="/ohm/scan" />
 	<remap from="ranges" to="/ohm/ranges" />
 	<remap from="scan_to_xy_out" to="/ohm/pcl" />
+	<remap from="scan" to="/ohm/scan" />
+	<param name="base_frame" value="base_link" />
+	<param name="reference_frame" value="odom" />
+	<param name="use_tf" value="true" />
+	<param name="use_sim" value="true" />
+	<node pkg="helper_nodes" type="scan_to_xy" name="scan_to_xy" />
 	<param name="forgivable" value="4" />
 	<param name="max_point_distance" value="1.2" />
 	<param name="min_group_count" value="4" />
 	<param name="reaction_distance" value="1.8" />
-	<param name="base_frame" value="base_link" />
-	<param name="reference_frame" value="odom" />
 	<node pkg="object_detection" name="object_detection" type="object_detection_node" output="screen" />
 	
 	<!-- Joystick and Manual Control-->

@@ -16,7 +16,7 @@
 struct scan_transformer {
   	ros::NodeHandle nh;
   	ros::Publisher pub;
-	ros::Publisher debug_pub;
+	ros::Publisher scanPub;
   	ros::Subscriber scanSub;
   	laser_geometry::LaserProjection projector_;
   	tf::TransformListener listener;
@@ -28,18 +28,20 @@ struct scan_transformer {
       	ROS_INFO_STREAM("Converting /scan to XY point cloud");
 
       	// Create a ROS subscriber for the input laser scan
+		ros::NodeHandle nh_private("~");
+
       	bool use_tf = false;
-		nh.param("use_tf", use_tf, use_tf);
-		nh.param(std::string("reference_frame"), ref_frame_id, std::string("world"));
-		nh.param(std::string("base_frame"), base_frame_id, std::string("ohm_base_link"));
-		nh.param(std::string("use_sim"), use_sim, false);
+		nh_private.param("use_tf", use_tf, use_tf);
+		nh_private.param(std::string("reference_frame"), ref_frame_id, std::string("world"));
+		nh_private.param(std::string("base_frame"), base_frame_id, std::string("ohm_base_link"));
+		nh_private.param(std::string("use_sim"), use_sim, false);
 		
-      	if(use_tf) scanSub = nh.subscribe(std::string("scan"), 1, &scan_transformer::scan_to_XY_tf, this);
-      	else scanSub = nh.subscribe(std::string("scan"), 1, &scan_transformer::scan_to_XY, this);
+      	if(use_tf) scanSub = nh.subscribe(std::string("scan_in"), 1, &scan_transformer::scan_to_XY_tf, this);
+      	else scanSub = nh.subscribe(std::string("scan_in"), 1, &scan_transformer::scan_to_XY, this);
 
       	// Create a ROS publisher for the output point cloud
       	pub = nh.advertise<sensor_msgs::PointCloud>(std::string("scan_to_xy_out"), 1);
-		debug_pub = nh.advertise<sensor_msgs::PointCloud>(std::string("/ohm/debug_pcl"), 1);
+		scanPub = nh.advertise<sensor_msgs::LaserScan>(std::string("corrected_scan"), 1);
 
       	ros::Duration(5.0).sleep();
   	};
@@ -50,11 +52,19 @@ struct scan_transformer {
 		cloud.header.stamp = ros::Time::now();
 		cloud.header.frame_id = scan_in->header.frame_id;
 
+		sensor_msgs::LaserScan scan = *scan_in;
+
+		if(use_sim) {
+			scan.angle_min = DEG2RAD(-90.0);
+			scan.angle_max = DEG2RAD(90.0);
+		}
+
   	  	//convert scan data into point cloud
-    	projector_.projectLaser(*scan_in, cloud);
+    	projector_.projectLaser(scan, cloud);
 
     	//publish point cloud
     	pub.publish(cloud);  
+		scanPub.publish(scan);
 
   	};
 
@@ -75,6 +85,7 @@ struct scan_transformer {
     	projector_.transformLaserScanToPointCloud(ref_frame_id, scan, cloud, listener);
 
     	pub.publish(cloud);
+		scanPub.publish(scan);
   	}; 
 };
 

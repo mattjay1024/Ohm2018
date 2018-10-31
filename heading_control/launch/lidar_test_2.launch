@@ -39,14 +39,12 @@
 	<include file="$(find isc_sick)/launch/LMS1xx.launch">
 		<arg name="correct_tf" value="true" />
 	</include>
-	<remap from="scan_to_xy_out" to="/ohm/pcl" />
-	<param name="use_tf" value="true" />
-	<node pkg="helper_nodes" type="scan_to_xy" name="scan_to_xy" />
 	<remap from="ranges" to="/ohm/ranges" />
 	<param name="forgivable" value="4" />
 	<param name="max_point_distance" value="1.4" />
 	<param name="min_group_count" value="4" />
-	<param name="reaction_distance" value="2.0" />
+	<param name="reaction_distance" value="1.8" />
+	<param name="side_reaction_distance" value="0.6" />
 	<param name="base_frame" value="ohm_base_link" />
 	<node pkg="object_detection" name="object_detection" type="object_detection_node" output="screen" />
 	

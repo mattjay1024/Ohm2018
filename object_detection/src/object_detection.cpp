@@ -5,11 +5,14 @@ object_detector::object_detector(ros::NodeHandle nh) : node(nh) {
 	node.param("forgivable", forgivable, 3);
 	node.param("max_point_distance", eps, 1.0); // meters
 	node.param("min_group_count", min_group_count, 4);
-	node.param("reaction_distance", min_obstacle_distance, 100.0); // meters (?)
+	node.param("reaction_distance", front_min_obstacle_distance, 100.0); // meters (?)
+	node.param("side_reaction_distance", side_min_obstacle_distance, 1.0);
+	node.param("min_obstacle_size", min_obstacle_size, 20.0);
 	node.param("base_frame", base_frame_id, std::string("base"));
 	node.param("reference_frame", ref_frame_id, std::string("world"));
 
 	pcl_input = node.subscribe(std::string("scan_to_xy_out"), 1, &object_detector::find_point_groups, this);
+	scan_input = node.subscribe(std::string("scan"), 1, &object_detector::find_ranges, this);
 
 	object_groups_pub = node.advertise<sensor_msgs::PointCloud>("object_groups", 1);
 	object_markers_pub = node.advertise<visualization_msgs::Marker>("object_markers", 1);
@@ -131,6 +134,75 @@ void object_detector::find_valid_ranges(std::vector<std::list<geometry_msgs::Poi
 	ranges.header.stamp = last_received_pcl;
 	range_pub.publish(ranges);
 }
+
+// from here
+
+void object_detector::find_ranges(const sensor_msgs::LaserScan::ConstPtr &scan) {
+	ohm_igvc_msgs::RangeArray valid_ranges;
+	ohm_igvc_msgs::Range left_block, right_block, possible_range;
+
+	left_block.start = -135.0;
+	left_block.end = -30.0;
+		
+	right_block.start = 30.0;
+	right_block.end = 135.0;
+
+	double ray_theta = (scan->angle_min * (180.0 / geometric::pi));
+	double r;
+	double obstacle_size;
+	bool started_obstacle = false;
+	bool ended_obstacle = true;
+	
+	// ROS_INFO("Iterating over laser scan:");
+	// ROS_INFO("\tscan.size() => %d", (int)scan->ranges.size());
+
+	for(auto ray = scan->ranges.begin(); ray != scan->ranges.end(); ++ray) {
+		if(std::fabs(ray_theta) > 60.0) { 
+			// r = sqrt(x^2 * (1 + tan^2(theta - 90.0)))
+			r = std::sqrt(side_min_obstacle_distance * side_min_obstacle_distance * (1 + (std::tan(ray_theta - 90.0) * std::tan(ray_theta - 90.0)))); 
+		} else {
+			r = front_min_obstacle_distance;
+		}
+
+		if(*ray > r || *ray == 0.0) {
+			if(!ended_obstacle) {
+				ended_obstacle = true;
+				started_obstacle = false;
+				if(obstacle_size > min_obstacle_size) {
+					if(std::fabs(ray_theta) > 60.0) {
+						valid_ranges.ranges.push_back((ray_theta > 0.0 ? right_block : left_block));
+					} else {
+						possible_range.end = ray_theta;
+						valid_ranges.ranges.push_back(possible_range);
+					}
+				}
+			}
+		} else if(*ray < r) {
+			if(!started_obstacle) {
+				started_obstacle = true;
+				ended_obstacle = false;
+				if(std::fabs(ray_theta) < 60.0) possible_range.start = ray_theta;
+				obstacle_size = 1.0;
+			} else {
+				obstacle_size++;
+			}
+		}		
+
+		ray_theta += (scan->angle_increment * (180.0 / geometric::pi));
+	}
+
+	if(started_obstacle && !ended_obstacle) { 
+		if(obstacle_size > min_obstacle_size) {
+			if(std::fabs(ray_theta) > 60.0) valid_ranges.ranges.push_back(right_block);
+		}
+	}
+
+	valid_ranges.ranges.erase(std::remove_if(valid_ranges.ranges.begin(), valid_ranges.ranges.end(), [] (ohm_igvc_msgs::Range r) { return (std::fabs(r.start - r.end) < 15.0); }), valid_ranges.ranges.end());
+
+	range_pub.publish(valid_ranges);
+}
+
+// to here
 
 //*** HELPER FUNCTIONS ***//
 

@@ -334,6 +334,26 @@ int main(int argc, char** argv) {
 	
 					for(auto range = control.lidar_ranges.ranges.begin(); range != control.lidar_ranges.ranges.end(); ++range) {
 						if(circular_range::in_range(range->start, range->end, desired_heading)) {
+							found_desired_heading = true;
+							ROS_INFO("\tFound the heading!");
+							break;
+						}
+					}
+
+					if(found_desired_heading) {
+						for(auto range = control.lidar_ranges.ranges.begin(); range != control.lidar_ranges.ranges.end(); ++range) {
+							if(circular_range::in_range(range->end, (range + 1 != control.lidar_ranges.ranges.end() ? range->start : 135.0), desired_heading)) {
+								best_angles.push_back(circular_range::average(range->end, (range + 1 != control.lidar_ranges.ranges.end() ? range->start : 135.0)));
+							}						
+						}
+
+						std::sort(best_angles.begin(), best_angles.end(), [] (double a, double b) { return std::fabs(a) < std::fabs(b); });
+
+						desired_heading = circular_range::wrap(desired_heading + best_angles.front(), 360.0);
+					}
+					/*
+					for(auto range = control.lidar_ranges.ranges.begin(); range != control.lidar_ranges.ranges.end(); ++range) {
+						if(circular_range::in_range(range->start, range->end, desired_heading)) {
 							found_desired_heading = true; // if the desired heading is in this range, break and run with that
 							ROS_INFO("\tFound the heading!");
 							break;
@@ -352,11 +372,11 @@ int main(int argc, char** argv) {
 	 
 						ROS_INFO("\tFound next best angle");
 					}
-				} else if(control.lidar_ranges.ranges.empty()) {
-					desired_heading = circular_range::supplement(desired_heading); // turn in place
-					ROS_INFO("\tCouldn't find any heading");
-				}
+					*/
+				} 
 			}
+
+			lidar_dh = desired_heading;
 
 			ROS_INFO("HDNG: %f dg | TRG: %f dg | POS: (%f, %f) | TRG: (%f, %f) | DST: %f m | FTIP: %d, TRN_ST: %d, GPS_DH: %f, CAM_DH: %f, LID_DH: %f", control.pose.heading, desired_heading, control.pose.position.x, control.pose.position.y, control.goal.position.x, control.goal.position.y, geometric::distance(control.pose.position, control.goal.position), control.force_turn_in_place ? 1 : 0, control.turn_state ? 1 : 0, gps_dh, camera_dh, lidar_dh);
 
@@ -370,13 +390,21 @@ int main(int argc, char** argv) {
 			double adjusted_heading;
 
 			switch(control.turn_state) { // condition inputs to get correct PID output. similar to condition_target
-				case 1: case 4: // LEFT CROSS BOUNDARY
+				case 1: // LEFT CROSS BOUNDARY
 					adjusted_heading = control.pose.heading - 360.0;
 					break;
-				case 2: case 5: // RIGHT CROSS BOUNDARY
+				case 2: // RIGHT CROSS BOUNDARY
 					adjusted_heading = control.pose.heading + 360.0;
 					break;
 				case 3: // IN_PLACE
+					drive_command.linear.x = 0.0;
+					break;
+				case 4:
+					adjusted_heading = control.pose.heading - 360.0;
+					drive_command.linear.x = 0.0;
+					break;
+				case 5:
+					adjusted_heading = control.pose.heading + 360.0;
 					drive_command.linear.x = 0.0;
 					break;
 				default:
